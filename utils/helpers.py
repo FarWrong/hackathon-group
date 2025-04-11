@@ -91,6 +91,7 @@ def get_dataloader(params,  mode="train"):
     )
     return data_loader
 
+'''
 def draw_gaze(frame, bbox, pitch, yaw, thickness=2, color=(0, 0, 255)):
     """Draws gaze direction on a frame given bounding box and gaze angles."""
     # Unpack bounding box coordinates
@@ -123,8 +124,55 @@ def draw_gaze(frame, bbox, pitch, yaw, thickness=2, color=(0, 0, 255)):
         line_type=cv2.LINE_AA,
         tipLength=0.25
     )
+'''
 
+def draw_gaze(frame, bbox, pitch, yaw, attention_threshold=0.20, thickness=2):
+    """Draws gaze direction on a frame given bounding box and gaze angles."""
+    # unpack bounding box coordinates
+    x_min, y_min, x_max, y_max = map(int, bbox[:4])
 
+    # calculate center of the bounding box
+    x_center = (x_min + x_max) // 2
+    y_center = (y_min + y_max) // 2
+
+    # handle grayscale frames by converting them to BGR
+    if len(frame.shape) == 2 or frame.shape[2] == 1:
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
+    # calculate the direction of the gaze
+    length = x_max - x_min
+    dx = int(-length * np.sin(pitch) * np.cos(yaw))
+    dy = int(-length * np.sin(yaw))
+
+    # calculate angular deviation from looking at camera
+    # lower values = looking more directly at camera
+    deviation = np.sqrt(pitch**2 + yaw**2)
+    
+    # set color based on threshold
+    if deviation <= attention_threshold:
+        color = (0, 255, 0)  # green for looking at camera
+        text = "Looking at Ad"
+    else:
+        color = (0, 0, 255)  # red for not looking at camera
+        text = "NOT looking at Ad"
+
+    # draw attention status text
+    cv2.putText(frame, text, (x_min, y_min - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+    point1 = (x_center, y_center)
+    point2 = (x_center + dx, y_center + dy)
+
+    # draw gaze direction
+    cv2.circle(frame, (x_center, y_center), radius=4, color=color, thickness=-1)
+    cv2.arrowedLine(
+        frame,
+        point1,
+        point2,
+        color=color,
+        thickness=thickness,
+        line_type=cv2.LINE_AA,
+        tipLength=0.25
+    )
 
 def draw_bbox(image, bbox, color=(0, 255, 0), thickness=2, proportion=0.2):
     x_min, y_min, x_max, y_max = map(int, bbox[:4])
