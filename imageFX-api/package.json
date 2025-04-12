@@ -1,0 +1,16 @@
+{
+  "name": "imagefx-api",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "argparse": "^2.0.1"
+  },
+  "main": "./src/index.ts"
+}
