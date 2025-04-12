@@ -7,11 +7,10 @@ import uniface
 import argparse
 import numpy as np
 import onnxruntime as ort
-
+import time
 from typing import Tuple
-
-from utils.helpers import draw_bbox_gaze
-
+from utils.helpers import draw_bbox_gaze, draw_stats
+from utils.file_writer import percentage_queue, writer_thread
 
 class GazeEstimationONNX:
     """
@@ -112,13 +111,19 @@ def parse_args():
         default=None,
         help="Path to save output video (optional)"
     )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.20,
+        help="Attention threshold in radians (default: 0.20)"
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
 
-    # Handle numeric webcam index
+    # handle numeric webcam index
     try:
         source = int(args.source)
     except ValueError:
@@ -128,11 +133,10 @@ if __name__ == "__main__":
     if not cap.isOpened():
         raise IOError(f"Failed to open video source: {args.source}")
 
-    # Initialize Gaze Estimation model
+    # init model
     engine = GazeEstimationONNX(model_path=args.model)
     detector = uniface.RetinaFace()
 
-    # Optional output writer
     writer = None
     if args.output:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -141,21 +145,25 @@ if __name__ == "__main__":
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(args.output, fourcc, fps, (width, height))
 
+    last_poll_time = time.time()
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-
+        
         bboxes, _ = detector.detect(frame)
-
         for bbox in bboxes:
             x_min, y_min, x_max, y_max = map(int, bbox[:4])
             face_crop = frame[y_min:y_max, x_min:x_max]
             if face_crop.size == 0:
                 continue
-
+            
             pitch, yaw = engine.estimate(face_crop)
-            draw_bbox_gaze(frame, bbox, pitch, yaw)
+            draw_bbox_gaze(frame, bbox, pitch, yaw, args.threshold)
+        
+        # draw stats overlay
+        draw_stats(frame)
 
         if writer:
             writer.write(frame)
@@ -168,3 +176,6 @@ if __name__ == "__main__":
     if writer:
         writer.release()
     cv2.destroyAllWindows()
+
+percentage_queue.put(None)  # Send termination signal
+writer_thread.join(timeout=1.0)
